@@ -95,11 +95,13 @@ func (mm *MuxManager) reload() error {
 			return err
 		}
 		modTime := fileInfo.ModTime()
-
 		zoneName := fileName[0:strings.LastIndex(fileName, ".")]
-
+		isConsul := strings.HasPrefix(zoneName, "consul_")
+		if isConsul {
+			zoneName = strings.TrimPrefix(zoneName, "consul_")
+			modTime = time.Now()
+		}
 		seenZones[zoneName] = true
-
 		if _, ok := mm.lastRead[zoneName]; !ok || modTime.After(mm.lastRead[zoneName].time) {
 			if ok {
 				log.Printf("Reloading %s\n", fileName)
@@ -108,7 +110,6 @@ func (mm *MuxManager) reload() error {
 				log.Printf("Reading new file %s\n", fileName)
 				mm.lastRead[zoneName] = &zoneReadRecord{time: modTime}
 			}
-
 			filename := path.Join(mm.path, fileName)
 
 			// Check the sha256 of the file has not changed. It's worth an explanation of
@@ -133,11 +134,10 @@ func (mm *MuxManager) reload() error {
 			// replaced atomically we have other problems (e.g. partial reads).
 
 			sha256 := sha256File(filename)
-			if mm.lastRead[zoneName].hash == sha256 {
+			if mm.lastRead[zoneName].hash == sha256 && !isConsul {
 				log.Printf("Skipping new file %s as hash is unchanged\n", filename)
 				continue
 			}
-
 			zone := NewZone(zoneName)
 			err := zone.ReadZoneFile(filename)
 			if zone == nil || err != nil {

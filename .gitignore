@@ -10,3 +10,5 @@ geodns-*-*
 geodns-*-*.tar
 /devel/
 /GeoIP
+dns/consul_*
+queries.log

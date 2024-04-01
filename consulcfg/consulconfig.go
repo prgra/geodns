@@ -81,5 +81,14 @@ func (c *Client) GetZoneData(zone string) ([]byte, error) {
 	}
 	b, err := io.ReadAll(res.Body)
 	_ = res.Body.Close()
+	var cresp []ConsulKVResponse
+	err = json.Unmarshal(b, &cresp)
+	if err != nil {
+		return nil, err
+	}
+	if len(cresp) == 0 {
+		return nil, fmt.Errorf("no data")
+	}
+	b, err = base64.StdEncoding.DecodeString(cresp[0].Value)
 	return b, err
 }

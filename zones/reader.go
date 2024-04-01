@@ -27,14 +27,14 @@ func (zone *Zone) ReadZoneFile(fileName string) (zerr error) {
 	fileName = filepath.Clean(fileName)
 	var dec io.ReadSeeker
 	var modTime int64
-	if strings.HasPrefix(fileName, "consul_") {
-		url := strings.TrimPrefix(fileName, "consul_")
+	rawfilename := filepath.Base(fileName)
+	if strings.HasPrefix(rawfilename, "consul_") {
+		url := strings.TrimPrefix(rawfilename, "consul_")
 		zn, err := consulcfg.GClient.GetZoneData(url)
 		if err != nil {
 			log.Printf("Could not read '%s': %s", url, err)
 			return err
 		}
-		fmt.Println("ZN", string(zn))
 		dec = strings.NewReader(string(zn))
 	} else {
 		fh, err := os.Open(fileName)
