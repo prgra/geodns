@@ -7,11 +7,12 @@ import (
 	"log"
 	"net"
 	"os"
-	"runtime/debug"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/abh/geodns/v3/consulcfg"
 	"github.com/abh/geodns/v3/targeting"
 	"github.com/abh/geodns/v3/typeutil"
 
@@ -23,41 +24,48 @@ import (
 type ZoneList map[string]*Zone
 
 func (zone *Zone) ReadZoneFile(fileName string) (zerr error) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("reading %s failed: %s", zone.Origin, r)
-			debug.PrintStack()
-			zerr = fmt.Errorf("reading %s failed: %s", zone.Origin, r)
+	fileName = filepath.Clean(fileName)
+	var dec io.ReadSeeker
+	var modTime int64
+	if strings.HasPrefix(fileName, "consul_") {
+		url := strings.TrimPrefix(fileName, "consul_")
+		zn, err := consulcfg.GClient.GetZoneData(url)
+		if err != nil {
+			log.Printf("Could not read '%s': %s", url, err)
+			return err
 		}
-	}()
-
-	fh, err := os.Open(fileName)
-	if err != nil {
-		log.Printf("Could not read '%s': %s", fileName, err)
-		panic(err)
-	}
-
-	fileInfo, err := fh.Stat()
-	if err != nil {
-		log.Printf("Could not stat '%s': %s", fileName, err)
+		fmt.Println("ZN", string(zn))
+		dec = strings.NewReader(string(zn))
 	} else {
-		zone.Options.Serial = int(fileInfo.ModTime().Unix())
+		fh, err := os.Open(fileName)
+		if err != nil {
+			log.Printf("Could not read '%s': %s", fileName, err)
+			return err
+		}
+		fileInfo, err := fh.Stat()
+		if err != nil {
+			log.Printf("Could not stat '%s': %s", fileName, err)
+			return err
+		}
+		modTime = fileInfo.ModTime().Unix()
+		dec = fh
 	}
+	zone.Options.Serial = int(modTime)
 
 	var objmap map[string]interface{}
-	decoder := json.NewDecoder(fh)
-	if err = decoder.Decode(&objmap); err != nil {
+	decoder := json.NewDecoder(dec)
+	if err := decoder.Decode(&objmap); err != nil {
 		extra := ""
 		if serr, ok := err.(*json.SyntaxError); ok {
-			if _, serr := fh.Seek(0, io.SeekStart); serr != nil {
+			if _, serr := dec.Seek(0, io.SeekStart); serr != nil {
 				log.Fatalf("seek error: %v", serr)
 			}
-			line, col, highlight := errorutil.HighlightBytePosition(fh, serr.Offset)
+			line, col, highlight := errorutil.HighlightBytePosition(dec, serr.Offset)
 			extra = fmt.Sprintf(":\nError at line %d, column %d (file offset %d):\n%s",
 				line, col, serr.Offset, highlight)
 		}
 		return fmt.Errorf("error parsing JSON object in config file %s%s\n%v",
-			fh.Name(), extra, err)
+			fileName, extra, err)
 	}
 
 	//log.Println(objmap)
@@ -82,6 +90,7 @@ func (zone *Zone) ReadZoneFile(fileName string) (zerr error) {
 				zone.HasClosest = true
 			}
 		case "targeting":
+			var err error
 			zone.Options.Targeting, err = targeting.ParseTargets(v.(string))
 			if err != nil {
 				return fmt.Errorf("parsing targeting '%s': %s", v, err)

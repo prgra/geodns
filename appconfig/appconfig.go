@@ -2,6 +2,7 @@ package appconfig
 
 import (
 	"context"
+	"io"
 	"log"
 	"os"
 	"sync"
@@ -124,6 +125,28 @@ func ConfigReader(fileName string) error {
 	cfg := new(AppConfig)
 
 	err = gcfg.ReadFileInto(cfg, fileName)
+	if err != nil {
+		log.Printf("Failed to parse config data: %s\n", err)
+		return err
+	}
+
+	cfgMutex.Lock()
+	*Config = *cfg // shallow copy to prevent race conditions in referring to Config.foo()
+	cfgMutex.Unlock()
+
+	return nil
+}
+
+// ConfigReaderFromReader reads gcfg formatted data from reader and sets the values into the config
+func ConfigReaderFromReader(r io.Reader) error {
+
+	lastReadConfig = time.Now()
+
+	log.Printf("Loading config from reader\n")
+
+	cfg := new(AppConfig)
+
+	err := gcfg.ReadInto(cfg, r)
 	if err != nil {
 		log.Printf("Failed to parse config data: %s\n", err)
 		return err
