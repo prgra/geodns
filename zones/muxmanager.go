@@ -99,7 +99,7 @@ func (mm *MuxManager) reload() error {
 		isConsul := strings.HasPrefix(zoneName, "consul_")
 		if isConsul {
 			zoneName = strings.TrimPrefix(zoneName, "consul_")
-			modTime = time.Now()
+			modTime = time.Now().Truncate(time.Minute)
 		}
 		seenZones[zoneName] = true
 		if _, ok := mm.lastRead[zoneName]; !ok || modTime.After(mm.lastRead[zoneName].time) {
