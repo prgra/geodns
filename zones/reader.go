@@ -29,8 +29,9 @@ func (zone *Zone) ReadZoneFile(fileName string) (zerr error) {
 	var modTime int64
 	rawfilename := filepath.Base(fileName)
 	if strings.HasPrefix(rawfilename, "consul_") {
+		fileName = strings.TrimPrefix(fileName, "consul_")
 		url := strings.TrimPrefix(rawfilename, "consul_")
-		zn, err := consulcfg.GClient.GetZoneData(url)
+		zn, err := consulcfg.GClient.GetZoneData(fileName)
 		if err != nil {
 			log.Printf("Could not read '%s': %s", url, err)
 			return err

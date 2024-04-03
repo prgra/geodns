@@ -56,6 +56,8 @@ var (
 var (
 	flagconfig      = flag.String("config", "./dns/", "directory of zone files")
 	flagconsul      = flag.String("consul", "", "consul agent address")
+	flagconsulcfg   = flag.Bool("consulcfg", false, "use consul for configuration")
+	flagconsulpath  = flag.String("consulpath", "geodns", "consul patch for zones and config")
 	flagconfigfile  = flag.String("configfile", "geodns.conf", "filename of config file (in 'config' directory)")
 	flagcheckconfig = flag.Bool("checkconfig", false, "check configuration and exit")
 	flagidentifier  = flag.String("identifier", "", "identifier (hostname, pop name or similar)")
@@ -86,11 +88,9 @@ func init() {
 
 func main() {
 	flag.Parse()
-
 	if *memprofile != "" {
 		runtime.MemProfileRate = 1024
 	}
-	fmt.Println("consul", *flagconsul)
 	if *flagShowVersion {
 		fmt.Printf("geodns %s\n", version.Version())
 		os.Exit(0)
@@ -180,8 +180,8 @@ func main() {
 	if len(appconfig.Config.Health.Directory) > 0 {
 		go health.DirectoryReader(appconfig.Config.Health.Directory)
 	}
+	if *flagconsul == "" && !*flagconsulcfg {
 
-	if *flagconsul == "" {
 		// load geodns.conf config
 		err := appconfig.ConfigReader(configFileName)
 		if err != nil {
@@ -198,8 +198,9 @@ func main() {
 			return nil
 		})
 	}
-	if *flagconsul != "" {
-		consulclient := consulcfg.NewClient(*flagconsul)
+
+	consulclient := consulcfg.NewClient(*flagconsul, *flagconsulpath)
+	if *flagconsul != "" && *flagconsulcfg {
 		consulclient.ReadConfig()
 	}
 
